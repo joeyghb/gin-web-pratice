@@ -32,6 +32,7 @@ func GetConfig(c *gin.Context) *Configuration {
 	decoder := json.NewDecoder(file)
 	configuration := Configuration{}
 	err := decoder.Decode(&configuration)
+
 	if err != nil {
 		fmt.Println("error:", err)
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -40,25 +41,25 @@ func GetConfig(c *gin.Context) *Configuration {
 	}
 
 	return &configuration
-
-	/*
-		c.JSON(http.StatusOK, gin.H{
-			"User": configuration.User,
-			"Pwd":  configuration.Pwd,
-		})*/
 }
 
 func QueryHomeSpentOne(c *gin.Context) {
 
-	session, err := mgo.Dial("128.199.143.113:27017")
+	var myConfig = GetConfig(c)
+	user := myConfig.User
+	Pwd := myConfig.Pwd
+
+	var mydb = getDB()
+	err := mydb.Login(user, Pwd)
+
 	if err != nil {
 		panic(err)
 	} else {
-		println("Connection Success")
+		println("Login Success")
 	}
 
-	defer session.Close()
-	collections := session.DB("home").C("homespent")
+	defer mydb.Session.Close()
+	collections := mydb.C("homespent")
 
 	homespent := HomeSpent{}
 	User := "Joey"
@@ -88,51 +89,22 @@ func QueryHomeSpentOne(c *gin.Context) {
 	fmt.Printf("Memo : %s\n", homespent.Memo)
 
 	c.String(http.StatusOK, fmt.Sprintf("find homespent : %s", homespent.Memo))
-
 }
 
 func QueryHomeSpentAll(c *gin.Context) {
-
-	session, err := mgo.Dial("128.199.143.113:27017")
-	if err != nil {
-		panic(err)
-	} else {
-		println("Connection Success")
-	}
-	defer session.Close()
-	collections := session.DB("home").C("homespent")
-
-	var homespents []HomeSpent
-	User := "Joey"
-
-	//Query all
-	err = collections.Find(bson.M{"user": User}).All(&homespents)
-
-	if err != nil {
-		println("find data error")
-	}
-
-	//fmt.Printf("All Data\n")
-	c.String(http.StatusOK, fmt.Sprintf("find all homespent :\n"))
-	c.String(http.StatusOK, fmt.Sprintf("%v\n", homespents))
-}
-
-func TestAll(c *gin.Context) {
 
 	var myConfig = GetConfig(c)
 	user := myConfig.User
 	Pwd := myConfig.Pwd
 
 	var mydb = getDB()
-	mydb.Login(user, Pwd)
+	err := mydb.Login(user, Pwd)
 
-	/*
-		if err != nil {
-			panic(err)
-		} else {
-			println("Connection Success")
-		}
-	*/
+	if err != nil {
+		panic(err)
+	} else {
+		println("Login Success")
+	}
 
 	defer mydb.Session.Close()
 	collections := mydb.C("homespent")
@@ -141,7 +113,7 @@ func TestAll(c *gin.Context) {
 	User := "Joey"
 
 	//Query all
-	err := collections.Find(bson.M{"user": User}).All(&homespents)
+	err = collections.Find(bson.M{"user": User}).All(&homespents)
 
 	if err != nil {
 		println("find data error")
@@ -180,6 +152,20 @@ func TestInsertHomeSpent(c *gin.Context) {
 		c.String(http.StatusOK, res)*/
 }
 
+func getDB() *mgo.Database {
+
+	session, err := mgo.Dial("128.199.143.113:27017")
+	if err != nil {
+		panic(err)
+	} else {
+		println("Connection Success")
+	}
+
+	session.SetMode(mgo.Monotonic, true)
+	db := session.DB("home")
+	return db
+}
+
 func RegisterRoutes(r *gin.Engine) {
 	r.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "hello docker !")
@@ -193,10 +179,6 @@ func RegisterRoutes(r *gin.Engine) {
 		QueryHomeSpentAll(c)
 	})
 
-	r.GET("/TestAll", func(c *gin.Context) {
-		TestAll(c)
-	})
-
 	r.GET("/getconfig", func(c *gin.Context) {
 		GetConfig(c)
 	})
@@ -204,22 +186,6 @@ func RegisterRoutes(r *gin.Engine) {
 	r.GET("/insert", func(c *gin.Context) {
 		TestInsertHomeSpent(c)
 	})
-}
-
-func getDB() *mgo.Database {
-
-	session, err := mgo.Dial("128.199.143.113:27017")
-	if err != nil {
-		panic(err)
-	} else {
-		println("Connection Success")
-	}
-	//defer session.Close()
-
-	session.SetMode(mgo.Monotonic, true)
-	//db := session.DB("home").C("homespent")
-	db := session.DB("home")
-	return db
 }
 
 func main() {
