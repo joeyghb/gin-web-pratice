@@ -8,7 +8,10 @@ import (
 	"gopkg.in/mgo.v2/bson"
 	"net/http"
 	"os"
+	"sync"
 )
+
+var mu = &sync.Mutex{}
 
 type Configuration struct {
 	User string
@@ -54,8 +57,6 @@ func QueryHomeSpentOne(c *gin.Context) {
 
 	if err != nil {
 		panic(err)
-	} else {
-		println("Login Success")
 	}
 
 	defer mydb.Session.Close()
@@ -102,8 +103,6 @@ func QueryHomeSpentAll(c *gin.Context) {
 
 	if err != nil {
 		panic(err)
-	} else {
-		println("Login Success")
 	}
 
 	defer mydb.Session.Close()
@@ -125,31 +124,44 @@ func QueryHomeSpentAll(c *gin.Context) {
 
 }
 
-func TestInsertHomeSpent(c *gin.Context) {
-	/*
-		sn, _ := c.GetQuery("sn")
-		name, _ := c.GetQuery("name")
-		res := "no insert"
-		if sn != "" && name != "" {
-			session, err := mgo.Dial("128.199.143.113")
-			if err != nil {
-				panic(err)
-			} else {
-				println("连接成功")
-			}
-			collections := session.DB("home").C("homespent")
+func InsertHomeSpent(c *gin.Context) {
 
-			homespent := &HomeSpent{
-				User: name,
-				Sn:   sn,
-			}
-			err = collections.Insert(homespent)
-			if err != nil {
-				res = "no insert"
-			}
-			res = "insert!"
-		}
-		c.String(http.StatusOK, res)*/
+	mu.Lock()
+	defer mu.Unlock()
+
+	var myConfig = GetConfig(c)
+	user := myConfig.User
+	Pwd := myConfig.Pwd
+
+	var mydb = getDB()
+	err := mydb.Login(user, Pwd)
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer mydb.Session.Close()
+	collections := mydb.C("homespent")
+
+	homespent := HomeSpent{
+		Date:  "2019/03/22",
+		Item:  "育兒",
+		Cost:  200,
+		User:  "Yoyo",
+		Type:  "Card",
+		Store: "7-11",
+		Memo:  "Toy",
+	}
+
+	//Insert
+	err = collections.Insert(&homespent)
+
+	if err != nil {
+		println("insert error")
+		c.String(http.StatusOK, fmt.Sprintf("Insert error\n"))
+	}
+
+	c.String(http.StatusOK, fmt.Sprintf("Insert Success !!\n"))
 }
 
 func getDB() *mgo.Database {
@@ -157,8 +169,6 @@ func getDB() *mgo.Database {
 	session, err := mgo.Dial("128.199.143.113:27017")
 	if err != nil {
 		panic(err)
-	} else {
-		println("Connection Success")
 	}
 
 	session.SetMode(mgo.Monotonic, true)
@@ -179,12 +189,8 @@ func RegisterRoutes(r *gin.Engine) {
 		QueryHomeSpentAll(c)
 	})
 
-	r.GET("/getconfig", func(c *gin.Context) {
-		GetConfig(c)
-	})
-
 	r.GET("/insert", func(c *gin.Context) {
-		TestInsertHomeSpent(c)
+		InsertHomeSpent(c)
 	})
 }
 
@@ -192,5 +198,4 @@ func main() {
 	r := gin.New()
 	RegisterRoutes(r)
 	r.Run(":18080")
-	select {}
 }
