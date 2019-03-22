@@ -1,0 +1,5 @@
+FROM golang:alpine
+WORKDIR /app
+ADD . /app
+RUN cd /app && go build -o app get_url_one_param.go
+ENTRYPOINT ./app
